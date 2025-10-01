@@ -48,7 +48,7 @@ func main() {
 		client := chat.NewClient(hub, conn, 1, userID)
 		hub.Register <- client
 
-		client.SendHistory(database, 50)
+		client.SendHistoryWithPrivate(database, 50)
 
 		go client.WritePump()
 		go client.ReadPump(func(msg chat.Message) (chat.Message, error) {

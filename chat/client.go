@@ -57,7 +57,7 @@ func (c *Client) WritePump() {
 	}
 }
 
-func (c *Client) SendHistory(database *db.DataBase, limit int) {
+func (c *Client) SendHistoryWithPrivate(database *db.DataBase, limit int) {
 	rows, err := database.Conn.Query(
 		`SELECT id, channel_id, sender_id, content, created_at 
          FROM messages 
@@ -79,7 +79,30 @@ func (c *Client) SendHistory(database *db.DataBase, limit int) {
 			log.Println("SendHistory scan error:", err)
 			continue
 		}
-		messages = append([]Message{msg}, messages...) // вставляем в начало, чтобы были в правильном порядке
+		messages = append([]Message{msg}, messages...)
+	}
+
+	privRows, err := database.Conn.Query(
+		`SELECT id, sender_id, receiver_id, content, created_at
+         FROM private_messages
+         WHERE sender_id=$1 OR receiver_id=$1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+		c.UserID, limit,
+	)
+	if err != nil {
+		log.Println("SendHistory private query error:", err)
+		return
+	}
+	defer privRows.Close()
+
+	for privRows.Next() {
+		var msg Message
+		if err := privRows.Scan(&msg.ID, &msg.SenderID, &msg.ReceiverID, &msg.Content, &msg.CreatedAt); err != nil {
+			log.Println("SendHistory private scan error:", err)
+			continue
+		}
+		messages = append([]Message{msg}, messages...)
 	}
 
 	for _, msg := range messages {
