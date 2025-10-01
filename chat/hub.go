@@ -45,13 +45,15 @@ func (h *Hub) Run() {
 						}
 					}
 				}
-			} else { // канал
-				for c := range h.Channels[msg.ChannelID] {
-					select {
-					case c.Send <- msg:
-					default:
-						close(c.Send)
-						delete(h.Channels[msg.ChannelID], c)
+			} else {
+				if channelClients, ok := h.Channels[msg.ChannelID]; ok {
+					for c := range channelClients {
+						select {
+						case c.Send <- msg:
+						default:
+							close(c.Send)
+							delete(channelClients, c)
+						}
 					}
 				}
 			}

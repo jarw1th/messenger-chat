@@ -22,10 +22,22 @@ func EnsureUser(database *DataBase, username string) (int, error) {
 	var userID int
 	err := database.Conn.QueryRow(
 		`INSERT INTO users (username) 
-         VALUES ($1) 
-         ON CONFLICT (username) DO UPDATE SET username = EXCLUDED.username 
-         RETURNING id`,
+		 VALUES ($1) 
+		 ON CONFLICT (username) DO UPDATE SET username = EXCLUDED.username 
+		 RETURNING id`,
 		username,
 	).Scan(&userID)
 	return userID, err
+}
+
+func EnsureChannel(database *DataBase, channelName string) (int, error) {
+	var channelID int
+	err := database.Conn.QueryRow(
+		`INSERT INTO channels (name) 
+		 VALUES ($1) 
+		 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name 
+		 RETURNING id`,
+		channelName,
+	).Scan(&channelID)
+	return channelID, err
 }

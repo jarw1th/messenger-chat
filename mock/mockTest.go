@@ -22,27 +22,25 @@ func main() {
 		username = os.Args[1]
 	}
 
-	channelID := 1 // default
+	channelName := "General"
 	if len(os.Args) > 2 {
-		if ch, err := strconv.Atoi(os.Args[2]); err == nil {
-			channelID = ch
-		}
+		channelName = os.Args[2]
 	}
 
-	receiverID := 0 // default - каналное сообщение
+	receiverID := 0
 	if len(os.Args) > 3 {
 		if r, err := strconv.Atoi(os.Args[3]); err == nil {
 			receiverID = r
 		}
 	}
 
-	c, _, err := websocket.DefaultDialer.Dial("ws://localhost:8080/ws?username="+username+"&channel_id="+strconv.Itoa(channelID), nil)
+	url := "ws://localhost:8080/ws?username=" + username + "&channel_name=" + channelName
+	c, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
 	defer c.Close()
 
-	// Горутина для чтения входящих сообщений
 	go func() {
 		for {
 			_, message, err := c.ReadMessage()
@@ -58,7 +56,7 @@ func main() {
 	for scanner.Scan() {
 		text := scanner.Text()
 		msg := Message{
-			ChannelID:  channelID,
+			ChannelID:  0,
 			ReceiverID: receiverID,
 			Content:    text,
 		}
