@@ -11,8 +11,9 @@ import (
 )
 
 type Message struct {
-	ChannelID int    `json:"channel_id"`
-	Content   string `json:"content"`
+	ChannelID  int    `json:"channel_id"`
+	ReceiverID int    `json:"receiver_id,omitempty"`
+	Content    string `json:"content"`
 }
 
 func main() {
@@ -25,6 +26,13 @@ func main() {
 	if len(os.Args) > 2 {
 		if ch, err := strconv.Atoi(os.Args[2]); err == nil {
 			channelID = ch
+		}
+	}
+
+	receiverID := 0 // default - каналное сообщение
+	if len(os.Args) > 3 {
+		if r, err := strconv.Atoi(os.Args[3]); err == nil {
+			receiverID = r
 		}
 	}
 
@@ -50,8 +58,9 @@ func main() {
 	for scanner.Scan() {
 		text := scanner.Text()
 		msg := Message{
-			ChannelID: channelID,
-			Content:   text,
+			ChannelID:  channelID,
+			ReceiverID: receiverID,
+			Content:    text,
 		}
 		jsonMsg, err := json.Marshal(msg)
 		if err != nil {

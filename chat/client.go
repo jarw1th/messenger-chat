@@ -2,7 +2,9 @@ package chat
 
 import (
 	"MessengerChat/db"
+	"database/sql"
 	"log"
+	"sort"
 
 	"github.com/gorilla/websocket"
 )
@@ -57,15 +59,30 @@ func (c *Client) WritePump() {
 	}
 }
 
-func (c *Client) SendHistoryWithPrivate(database *db.DataBase, limit int) {
-	rows, err := database.Conn.Query(
-		`SELECT id, channel_id, sender_id, content, created_at 
-         FROM messages 
-         WHERE channel_id=$1 
-         ORDER BY created_at DESC 
-         LIMIT $2`,
-		c.ChannelID, limit,
-	)
+func (c *Client) SendHistoryWithPrivate(database *db.DataBase, limit int, showAllChannelMessages bool) {
+	var rows *sql.Rows
+	var err error
+
+	if showAllChannelMessages {
+		rows, err = database.Conn.Query(
+			`SELECT id, channel_id, sender_id, content, created_at 
+			 FROM messages 
+			 WHERE channel_id=$1 
+			 ORDER BY created_at DESC 
+			 LIMIT $2`,
+			c.ChannelID, limit,
+		)
+	} else {
+		rows, err = database.Conn.Query(
+			`SELECT id, channel_id, sender_id, content, created_at 
+			 FROM messages 
+			 WHERE channel_id=$1 AND sender_id=$2 
+			 ORDER BY created_at DESC 
+			 LIMIT $3`,
+			c.ChannelID, c.UserID, limit,
+		)
+	}
+
 	if err != nil {
 		log.Println("SendHistory query error:", err)
 		return
@@ -79,15 +96,18 @@ func (c *Client) SendHistoryWithPrivate(database *db.DataBase, limit int) {
 			log.Println("SendHistory scan error:", err)
 			continue
 		}
-		messages = append([]Message{msg}, messages...)
+		// Получаем имя отправителя
+		database.Conn.QueryRow(`SELECT username FROM users WHERE id=$1`, msg.SenderID).Scan(&msg.SenderName)
+		messages = append(messages, msg)
 	}
 
+	// Приватные сообщения
 	privRows, err := database.Conn.Query(
-		`SELECT id, sender_id, receiver_id, content, created_at
-         FROM private_messages
-         WHERE sender_id=$1 OR receiver_id=$1
-         ORDER BY created_at DESC
-         LIMIT $2`,
+		`SELECT id, sender_id, receiver_id, content, created_at 
+		 FROM private_messages 
+		 WHERE sender_id=$1 OR receiver_id=$1 
+		 ORDER BY created_at DESC 
+		 LIMIT $2`,
 		c.UserID, limit,
 	)
 	if err != nil {
@@ -102,8 +122,16 @@ func (c *Client) SendHistoryWithPrivate(database *db.DataBase, limit int) {
 			log.Println("SendHistory private scan error:", err)
 			continue
 		}
-		messages = append([]Message{msg}, messages...)
+		// Получаем имена отправителя и получателя
+		database.Conn.QueryRow(`SELECT username FROM users WHERE id=$1`, msg.SenderID).Scan(&msg.SenderName)
+		database.Conn.QueryRow(`SELECT username FROM users WHERE id=$1`, msg.ReceiverID).Scan(&msg.ReceiverName)
+		messages = append(messages, msg)
 	}
+
+	// Сортировка по CreatedAt
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
+	})
 
 	for _, msg := range messages {
 		c.Send <- msg
