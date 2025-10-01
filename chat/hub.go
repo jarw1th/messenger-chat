@@ -1,18 +1,18 @@
 package chat
 
 type Hub struct {
-	Clients    map[*Client]bool
-	Broadcast  chan Message
+	Channels   map[int]map[*Client]bool
 	Register   chan *Client
 	Unregister chan *Client
+	Broadcast  chan Message
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		Clients:    make(map[*Client]bool),
-		Broadcast:  make(chan Message),
+		Channels:   make(map[int]map[*Client]bool),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
+		Broadcast:  make(chan Message),
 	}
 }
 
@@ -20,19 +20,39 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
-			h.Clients[client] = true
+			if h.Channels[client.ChannelID] == nil {
+				h.Channels[client.ChannelID] = make(map[*Client]bool)
+			}
+			h.Channels[client.ChannelID][client] = true
+
 		case client := <-h.Unregister:
-			if _, ok := h.Clients[client]; ok {
-				delete(h.Clients, client)
+			if _, ok := h.Channels[client.ChannelID][client]; ok {
+				delete(h.Channels[client.ChannelID], client)
 				close(client.Send)
 			}
+
 		case msg := <-h.Broadcast:
-			for client := range h.Clients {
-				if msg.ReceiverID > 0 && client.UserID == msg.ReceiverID {
-					client.Send <- msg
+			if msg.ReceiverID > 0 {
+				for _, clients := range h.Channels {
+					for c := range clients {
+						if c.UserID == msg.ReceiverID || c.UserID == msg.SenderID {
+							select {
+							case c.Send <- msg:
+							default:
+								close(c.Send)
+								delete(clients, c)
+							}
+						}
+					}
 				}
-				if msg.ChannelID > 0 && client.ChannelID == msg.ChannelID {
-					client.Send <- msg
+			} else { // канал
+				for c := range h.Channels[msg.ChannelID] {
+					select {
+					case c.Send <- msg:
+					default:
+						close(c.Send)
+						delete(h.Channels[msg.ChannelID], c)
+					}
 				}
 			}
 		}

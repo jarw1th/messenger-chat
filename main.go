@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strconv"
 
 	"MessengerChat/chat"
 	"MessengerChat/db"
@@ -45,7 +46,13 @@ func main() {
 			return
 		}
 
-		client := chat.NewClient(hub, conn, 1, userID)
+		channelStr := r.URL.Query().Get("channel_id")
+		channelID := 1
+		if ch, err := strconv.Atoi(channelStr); err == nil {
+			channelID = ch
+		}
+
+		client := chat.NewClient(hub, conn, channelID, userID)
 		hub.Register <- client
 
 		client.SendHistoryWithPrivate(database, 50)

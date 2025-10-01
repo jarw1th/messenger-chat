@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 )
@@ -20,12 +21,20 @@ func main() {
 		username = os.Args[1]
 	}
 
-	c, _, err := websocket.DefaultDialer.Dial("ws://localhost:8080/ws?username="+username, nil)
+	channelID := 1 // default
+	if len(os.Args) > 2 {
+		if ch, err := strconv.Atoi(os.Args[2]); err == nil {
+			channelID = ch
+		}
+	}
+
+	c, _, err := websocket.DefaultDialer.Dial("ws://localhost:8080/ws?username="+username+"&channel_id="+strconv.Itoa(channelID), nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
 	defer c.Close()
 
+	// Горутина для чтения входящих сообщений
 	go func() {
 		for {
 			_, message, err := c.ReadMessage()
@@ -41,7 +50,7 @@ func main() {
 	for scanner.Scan() {
 		text := scanner.Text()
 		msg := Message{
-			ChannelID: 1,
+			ChannelID: channelID,
 			Content:   text,
 		}
 		jsonMsg, err := json.Marshal(msg)
